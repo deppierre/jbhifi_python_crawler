@@ -6,7 +6,7 @@ import os, sys, time
 class seleniumDriver(object):
     @abstractmethod
     def initDriver(self):
-        timeout = 20
+        timeout = 30
         try:
             self.driver = webdriver.Firefox(executable_path=self.driver)
             self.driver.set_page_load_timeout(timeout)

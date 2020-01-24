@@ -12,7 +12,7 @@ import data_from_selenium, data_from_request
 
 #Variables
 #DEBUG : 
-#os.chdir('c:\\Users\\pdepretz\\Google Drive\\#1DOCUMENTS\\#11 TEMP\\PYTHON\\projects\\aussie_tech_prices')
+os.chdir('c:\\Users\\pdepretz\\Google Drive\\#1DOCUMENTS\\#11 TEMP\\PYTHON\\projects\\aussie_tech_prices')
 if 'aussie_tech_prices' in (os.getcwd().split('\\')):
     project_path = os.getcwd()
     driver_path = project_path + '\\bin\\geckodriver.exe'
@@ -43,7 +43,8 @@ def getSoupCollections(url, filename):
                 return None
 
 #GET SOUP PRODUCTS
-def getSoupProducts(name, url, driver=driver_path):
+def getSoupProducts(name, url, filename, output, driver=driver_path):
+    soup_t1_start = perf_counter()
     getraw_from_selenium = data_from_selenium.getRawHtmlFromSelenium(driver)
     html = getraw_from_selenium.getData(url)
 
@@ -66,17 +67,29 @@ def getSoupProducts(name, url, driver=driver_path):
             for product_json in soup_products_raw:
                 json_products = json.loads(product_json.text)
                 soup_products[json_products['sku']] = { 'name': json_products['name'], 'price': json_products['offers']['price'], 'currency': json_products['offers']['priceCurrency'], 'barcode': json_products['gtin13'], 'date': getraw_from_selenium.price_date, 'time': getraw_from_selenium.price_time }
+            
+            cacheData(filename,soup_products)
+            output[name]['process'] = 1
+            output[name]['process_details'] = { 'nb_items': len(soup_products), 'filename': filename, 'process_time': '{0:.2f}'.format(perf_counter() - soup_t1_start) }
+            return soup_products
+
         else:
             print('error: no products for collection {0}\ndetails: \n\t- soup length: {1} \n\t- json length: {2}'.format((name),len(soup),len(soup_products_raw)))
+            #full log: print('error: no products for collection {0}\ndetails: \n\t- soup length: {1} \n\t- json length: {2}\n\t- soup content: {3}'.format((name),len(soup),len(soup_products_raw),soup))
             return None
-    return soup_products
 
 def cacheData(filename, dict_to_cache):
     with open(filename,'w+') as filename_:
         json.dump(dict_to_cache, filename_)
 
-def printOutput(soup, soup_file, rejects = 0, caches = 0, downloads = 0):
+def printOutput(soup, soup_file):
+    product_downloads = sum([ soup[key]['process_details']['nb_items'] for key in soup.keys() if soup[key]['process'] == 1 ])
     total = len([ soup[key]['process'] for key in soup.keys() if soup[key]['process'] in [1,2] ])
+    caches = len([ soup[key]['process'] for key in soup.keys() if soup[key]['process'] == 2 ])
+    rejects = len([ soup[key]['process'] for key in soup.keys() if soup[key]['process'] <= 0 ])
+
+    if total > 0:
+        cacheData(soup_file, soup)
     
     #RECAP:
     print('-' * 40)
@@ -85,18 +98,18 @@ def printOutput(soup, soup_file, rejects = 0, caches = 0, downloads = 0):
     print('-- {0} collections rejected'.format(rejects))
     print('-- {0} collections already cached'.format(caches))
     print('-- {0} collections processed'.format(total))
-    print('-- {0} products downloaded'.format(downloads))
+    print('-- {0} products downloaded'.format(product_downloads))
     print('-' * 40)
-    if total > 0:
-        cacheData(soup_file, soup)
 
-def newThread(function, *_args, name='newThread'):
+def newThread(function, *_args):
     #https://realpython.com/intro-to-python-threading/
-    print('Thread starting')
     thread = threading.Thread(target=function, args=_args)
-    time.sleep(2)
-    thread.start()
-    print('Thread finishing')
+    while threading.active_count() < 6:
+        thread.start()
+        while thread.is_alive():
+            time.sleep(1)
+            print('info: new thread {0} for collection - {1}'.format(thread, _args[0]))
+            return thread
 
 def main():
     #GLOBAL VARIABLES
@@ -108,11 +121,8 @@ def main():
     cache_file_collections_base = '{0}\\{1}_collections'.format(data_folder,current_date)
     cache_file_collections_output = '{0}\\{1}_{2}_collections_done.json'.format(output_folder,current_date,current_time)
     cache_file_products_base = '{0}\\{1}_products_'.format(data_folder,current_date)
-    filter_collections_exclusions = ['music', 'vinyl']
+    filter_collections_exclusions = ['music', 'vinyl','all computer accessories','all audio-visual accessories','iphone accessories','phone cases']
     filter_collections_inclusions = ['apple macbooks','40\" to 44\" tvs','vinyl']
-    number_collections_rejected = 0
-    number_collections_cached = 0
-    number_products_downloaded = 0
 
     #COLLECTIONS
     cache_file_collections = '{0}.json'.format(cache_file_collections_base)
@@ -120,8 +130,7 @@ def main():
         with open(cache_file_collections,'r') as filename:
             soup_collection, result = json.load(filename), 'cache file: {0}'.format(cache_file_collections.lower())
     else:
-        soup_collection, result = newThread(getSoupCollections, base_url, cache_file_collections), 'download'
-        #cacheData(cache_file_collections,soup_collection, cache_file_collections)
+        soup_collection, result = getSoupCollections(base_url, cache_file_collections), 'download'
 
     if soup_collection:
         soup_collection_result = soup_collection.copy()
@@ -133,31 +142,21 @@ def main():
     #Data collect
     for name, data in soup_collection.items():
         soup_products, result = {}, 0
-        cache_file_products, soup_t1_start = cache_file_products_base + data['url'].split('/')[2] + '.json', perf_counter()  
+        cache_file_products = cache_file_products_base + data['url'].split('/')[2] + '.json'
         if Path(cache_file_products).is_file():
             with open(cache_file_products,'r') as filename:
-                number_collections_cached += 1
-                soup_products, result = json.load(filename), 2
+                soup_products, soup_collection_result[name]['process'] = json.load(filename), 2
+                soup_collection_result[name]['process_details'] = { 'nb_items': len(soup_products), 'filename': cache_file_products }
+
         else:  
-            if name in filter_collections_inclusions:
-                soup_products, result = getSoupProducts(name, base_url + data['url']), 1
-                if soup_products:
-                    cacheData(cache_file_products,soup_products)
-                    print('info: {0} products downloaded - {1}'.format(len(soup_products),name))
-                    number_products_downloaded += len(soup_products)
-                else:
-                    number_collections_rejected += 1
-                    result = -1
-            else:
-                number_collections_rejected += 1
-                    
-        #Output file (1 = download, 2 = cache, -1 = error, 0 = not processed/rejected)
-        soup_collection_result[name]['process'] = result
-        if result > 0:
-            soup_collection_result[name]['process_details'] = { 'nb_items': len(soup_products), 'filename': cache_file_products, 'process_time': '{0:.2f}'.format(perf_counter() - soup_t1_start) }
-    
+            if name not in filter_collections_exclusions:
+                newThread(getSoupProducts, name, base_url + data['url'], cache_file_products, soup_collection_result)
+
     #Console summart
-    printOutput(soup_collection_result, cache_file_collections_output, number_collections_rejected, number_collections_cached, number_products_downloaded)
+    while threading.active_count() > 1:
+        pass
+    else:
+        printOutput(soup_collection_result, cache_file_collections_output)
 
 if __name__ == '__main__':
     main()

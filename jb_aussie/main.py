@@ -1,5 +1,5 @@
 #Import libraries
-#USING OF https://github.com/mozilla/geckodriver/releases
+#Driver here: https://github.com/mozilla/geckodriver/releases
 import requests, json, time
 import os, sys
 import threading
@@ -12,8 +12,7 @@ import data_from_selenium, data_from_request
 
 #Variables
 #DEBUG : 
-os.chdir('c:\\Users\\pdepretz\\Google Drive\\#1DOCUMENTS\\#11 TEMP\\PYTHON\\projects\\aussie_tech_prices')
-if 'aussie_tech_prices' in (os.getcwd().split('\\')):
+if 'jb_aussie' in (os.getcwd().split('\\')):
     project_path = os.getcwd()
     driver_path = project_path + '\\bin\\geckodriver.exe'
 else:

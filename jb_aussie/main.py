@@ -21,7 +21,7 @@ else:
     sys.exit()
 
 #GET SOUP DATA
-def getSoupCollections(url):
+def getSoupCollections(url, filename):
     getraw_from_request = data_from_request.getRawHtml()
     html = getraw_from_request.getRawHtml(url)
 
@@ -37,6 +37,7 @@ def getSoupCollections(url):
             soup = BeautifulSoup(html, 'html.parser')
             soup_collections = { (item.attrs['data-nav-title']).strip().lower(): {'url': item.attrs['href'], 'process': 0} for item in soup.find_all(class_='link-element') if '/collections' in item.attrs['href'] }
             if soup_collections: 
+                cacheData(filename,soup_collections)
                 return soup_collections
             else:
                 return None
@@ -70,7 +71,7 @@ def getSoupProducts(name, url, driver=driver_path):
             return None
     return soup_products
 
-def cacheData(filename,dict_to_cache):
+def cacheData(filename, dict_to_cache):
     with open(filename,'w+') as filename_:
         json.dump(dict_to_cache, filename_)
 
@@ -89,10 +90,10 @@ def printOutput(soup, soup_file, rejects = 0, caches = 0, downloads = 0):
     if total > 0:
         cacheData(soup_file, soup)
 
-def newThread(name, function, args):
+def newThread(function, *_args, name='newThread'):
     #https://realpython.com/intro-to-python-threading/
     print('Thread starting')
-    thread = threading.Thread(target=function, args=(args))
+    thread = threading.Thread(target=function, args=_args)
     time.sleep(2)
     thread.start()
     print('Thread finishing')
@@ -119,8 +120,8 @@ def main():
         with open(cache_file_collections,'r') as filename:
             soup_collection, result = json.load(filename), 'cache file: {0}'.format(cache_file_collections.lower())
     else:
-        soup_collection, result = getSoupCollections(base_url), 'download'
-        cacheData(cache_file_collections,soup_collection)
+        soup_collection, result = newThread(getSoupCollections, base_url, cache_file_collections), 'download'
+        #cacheData(cache_file_collections,soup_collection, cache_file_collections)
 
     if soup_collection:
         soup_collection_result = soup_collection.copy()
@@ -153,7 +154,7 @@ def main():
         #Output file (1 = download, 2 = cache, -1 = error, 0 = not processed/rejected)
         soup_collection_result[name]['process'] = result
         if result > 0:
-            soup_collection_result[name]['process_details'] = { 'nb_items': len(soup_products), 'filename': cache_file_products,'date': current_date, 'time': current_time, 'process_time': '{0:.2f}'.format(perf_counter() - soup_t1_start) }
+            soup_collection_result[name]['process_details'] = { 'nb_items': len(soup_products), 'filename': cache_file_products, 'process_time': '{0:.2f}'.format(perf_counter() - soup_t1_start) }
     
     #Console summart
     printOutput(soup_collection_result, cache_file_collections_output, number_collections_rejected, number_collections_cached, number_products_downloaded)

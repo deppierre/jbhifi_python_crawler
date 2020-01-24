@@ -11,8 +11,7 @@ from bs4 import BeautifulSoup
 import data_from_selenium, data_from_request
 
 #Variables
-#DEBUG : 
-if 'jb_aussie' in (os.getcwd().split('\\')):
+if 'jbhifi_python_crawler' in (os.getcwd().split('\\')):
     project_path = os.getcwd()
     driver_path = project_path + '\\bin\\geckodriver.exe'
 else:
@@ -74,7 +73,6 @@ def getSoupProducts(name, url, filename, output, driver=driver_path):
 
         else:
             print('error: no products for collection {0}\ndetails: \n\t- soup length: {1} \n\t- json length: {2}'.format((name),len(soup),len(soup_products_raw)))
-            #full log: print('error: no products for collection {0}\ndetails: \n\t- soup length: {1} \n\t- json length: {2}\n\t- soup content: {3}'.format((name),len(soup),len(soup_products_raw),soup))
             return None
 
 def cacheData(filename, dict_to_cache):
@@ -121,7 +119,6 @@ def main():
     cache_file_collections_output = '{0}\\{1}_{2}_collections_done.json'.format(output_folder,current_date,current_time)
     cache_file_products_base = '{0}\\{1}_products_'.format(data_folder,current_date)
     filter_collections_exclusions = ['music', 'vinyl','all computer accessories','all audio-visual accessories','iphone accessories','phone cases']
-    filter_collections_inclusions = ['apple macbooks','40\" to 44\" tvs','vinyl']
 
     #COLLECTIONS
     cache_file_collections = '{0}.json'.format(cache_file_collections_base)
@@ -151,7 +148,7 @@ def main():
             if name not in filter_collections_exclusions:
                 newThread(getSoupProducts, name, base_url + data['url'], cache_file_products, soup_collection_result)
 
-    #Console summart
+    #Console summary
     while threading.active_count() > 1:
         pass
     else:
